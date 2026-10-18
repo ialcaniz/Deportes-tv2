@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>Deporte en TV</title>
+<style>
+:root{--bg:#f8fafc;--card:#fff;--tx:#0f172a;--mu:#64748b;--ac:#16a34a;--bd:#e2e8f0}
+@media(prefers-color-scheme:dark){:root{--bg:#0f172a;--card:#1e293b;--tx:#f1f5f9;--mu:#94a3b8;--bd:#334155}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:env(safe-area-inset-top) 0 24px}
+header{position:sticky;top:0;background:var(--bg);padding:12px 14px;border-bottom:1px solid var(--bd);z-index:2}
+h1{font-size:18px;margin:0 0 8px}
+.row{display:flex;gap:8px}select{flex:1;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-size:14px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:18px 14px 8px}
+.ev{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:12px;margin:0 14px 8px;padding:10px 12px}
+.t{min-width:52px;font-weight:700;font-size:16px}.live .t{color:var(--ac)}
+.n{font-size:14px;font-weight:600}.m{font-size:12px;color:var(--mu);margin-top:2px}
+.badge{display:inline-block;background:var(--ac);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;margin-right:5px}
+.empty{margin:0 14px;color:var(--mu);font-size:14px}#st{margin:10px 14px;font-size:12px;color:var(--mu)}
+</style></head><body>
+<header><h1>Deporte en TV</h1>
+<div class="row"><select id="co"></select><select id="sp"></select></div></header>
+<div id="st">Cargando...</div><main id="app"></main>
+<script>
+const KEY='3',DUR=150*60000; // clave gratuita de TheSportsDB; duracion supuesta 2h30
+let all=[];const $=i=>document.getElementById(i);
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function ts(e){let s=e.strTimestamp||e.strTimeStamp;if(!s&&e.dateEvent)s=e.dateEvent+'T'+(e.strTime||'00:00:00');
+ if(!s)return null;s=s.replace(' ','T');if(!/[zZ]|[+-]\d\d:?\d\d$/.test(s))s+='Z';const t=Date.parse(s);return isNaN(t)?null:t}
+async function load(){
+ const now=new Date(),days=[-1,0,1].map(k=>{const d=new Date(now);d.setDate(d.getDate()+k);return ymd(d)});
+ try{const rs=await Promise.all(days.map(d=>fetch(`https://www.thesportsdb.com/api/v1/json/${KEY}/eventstv.php?d=${d}`).then(r=>r.json())));
+  all=rs.flatMap(r=>r&&r.tvevents||[]).map(e=>({t:ts(e),name:e.strEvent||'Evento',sport:e.strSport||'Otros',ch:e.strChannel||e.strTVStation||'',co:e.strCountry||'',lg:e.strLeague||''})).filter(e=>e.t);
+  localStorage.setItem('ev',JSON.stringify(all));$('st').textContent='Actualizado '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+ }catch(x){try{all=JSON.parse(localStorage.getItem('ev')||'[]')}catch(_){}$('st').textContent='Sin conexion: mostrando datos guardados'}
+ fill();render()}
+function fill(){const c=$('co'),s=$('sp'),pc=c.value,ps=s.value;
+ const cs=[...new Set(all.map(e=>e.co).filter(Boolean))].sort(),ss=[...new Set(all.map(e=>e.sport))].sort();
+ c.innerHTML='<option value="">Todos los paises</option>'+cs.map(x=>`<option>${x}</option>`).join('');
+ s.innerHTML='<option value="">Todos los deportes</option>'+ss.map(x=>`<option>${x}</option>`).join('');
+ c.value=pc||(cs.includes('Spain')?'Spain':'');s.value=ps}
+const hm=t=>new Date(t).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+function card(e,live){return `<div class="ev ${live?'live':''}"><div class="t">${hm(e.t)}</div><div><div class="n">${live?'<span class="badge">DIRECTO</span>':''}${e.name}</div><div class="m">${[e.ch,e.sport,e.lg].filter(Boolean).join(' · ')}</div></div></div>`}
+function render(){const n=Date.now(),c=$('co').value,s=$('sp').value;
+ const f=all.filter(e=>(!c||e.co===c)&&(!s||e.sport===s)).sort((a,b)=>a.t-b.t);
+ const live=f.filter(e=>e.t<=n&&e.t+DUR>n),next=f.filter(e=>e.t>n&&e.t<n+36e5*24);
+ $('app').innerHTML='<h2>Ahora en directo</h2>'+(live.map(e=>card(e,1)).join('')||'<p class="empty">Nada en directo ahora mismo.</p>')+
+ '<h2>Proximas 24 horas</h2>'+(next.map(e=>card(e,0)).join('')||'<p class="empty">Sin eventos proximos.</p>')}
+$('co').onchange=$('sp').onchange=render;setInterval(render,60000);setInterval(load,15*60000);load();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
