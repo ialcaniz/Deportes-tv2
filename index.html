@@ -23,17 +23,19 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);
 <div class="row"><select id="co"></select><select id="sp"></select></div></header>
 <div id="st">Cargando...</div><main id="app"></main>
 <script>
-const KEY='3',DUR=150*60000; // clave gratuita de TheSportsDB; duracion supuesta 2h30
+const KEYS=['3','123'],DUR=150*60000; // clave gratuita de TheSportsDB; duracion supuesta 2h30
 let all=[];const $=i=>document.getElementById(i);
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 function ts(e){let s=e.strTimestamp||e.strTimeStamp;if(!s&&e.dateEvent)s=e.dateEvent+'T'+(e.strTime||'00:00:00');
  if(!s)return null;s=s.replace(' ','T');if(!/[zZ]|[+-]\d\d:?\d\d$/.test(s))s+='Z';const t=Date.parse(s);return isNaN(t)?null:t}
+async function get(d){let err;for(const k of KEYS){try{const r=await fetch(`https://www.thesportsdb.com/api/v1/json/${k}/eventstv.php?d=${d}`);const t=await r.text();
+ try{return JSON.parse(t)}catch(_){err=new Error('HTTP '+r.status+': '+t.slice(0,80))}}catch(x){err=x}}throw err}
 async function load(){
  const now=new Date(),days=[-1,0,1].map(k=>{const d=new Date(now);d.setDate(d.getDate()+k);return ymd(d)});
- try{const rs=await Promise.all(days.map(d=>fetch(`https://www.thesportsdb.com/api/v1/json/${KEY}/eventstv.php?d=${d}`).then(r=>r.json())));
+ try{const rs=await Promise.all(days.map(get));
   all=rs.flatMap(r=>r&&r.tvevents||[]).map(e=>({t:ts(e),name:e.strEvent||'Evento',sport:e.strSport||'Otros',ch:e.strChannel||e.strTVStation||'',co:e.strCountry||'',lg:e.strLeague||''})).filter(e=>e.t);
   localStorage.setItem('ev',JSON.stringify(all));$('st').textContent='Actualizado '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
- }catch(x){try{all=JSON.parse(localStorage.getItem('ev')||'[]')}catch(_){}$('st').textContent='Sin conexion: mostrando datos guardados'}
+ }catch(x){try{all=JSON.parse(localStorage.getItem('ev')||'[]')}catch(_){}$('st').textContent='Error: '+(x.message||x)+' (datos guardados)'}
  fill();render()}
 function fill(){const c=$('co'),s=$('sp'),pc=c.value,ps=s.value;
  const cs=[...new Set(all.map(e=>e.co).filter(Boolean))].sort(),ss=[...new Set(all.map(e=>e.sport))].sort();
